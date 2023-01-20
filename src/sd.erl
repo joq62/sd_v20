@@ -51,33 +51,105 @@ stop()-> gen_server:call(?SERVER, {stop},infinity).
 %% @spec
 %% @end
 %%--------------------------------------------------------------------
-
-
-all()->
-    sd_server:all().
-get_node(WantedApp)->
-    sd_server:get_node(WantedApp).
-get_node_on_node(WantedApp,WantedNode)->
-    sd_server:get_node_on_node(WantedApp,WantedNode).
-get_node_on_host(WantedApp,WantedHost)->
-    sd_server:get_node_on_host(WantedApp,WantedHost).
-get_node_host(WantedApp)->
-    sd_server:get_node_host(WantedApp).
-get_node_host_on_node(WantedApp,WantedNode)->
-    sd_server:get_node_host_on_node(WantedApp,WantedNode).
-get_node_host_on_host(WantedApp,WantedHost)->
-    sd_server:get_node_host_on_host(WantedApp,WantedHost).
-
-
 call(App,M,F,A,T)->
-    sd_server:call(App,M,F,A,T).
+    Result=case rpc:call(node(),sd,get_node,[App],T) of
+	       {badrpc,Reason}->
+		   {error,[{badrpc,Reason}]};
+	       []->
+		   {error,["No node available for app : ",App,?MODULE,?LINE]};
+	       [{Node,_}|_]->
+		   rpc:call(Node,M,F,A,T)
+	   end,
+    Result.
 
-
-
+	%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
 cast(App,M,F,A)->
-    sd_server:cast(App,M,F,A).
+    Result=case rpc:call(node(),sd,get_node,[App],5*1000) of
+	       {badrpc,Reason}->
+		   {badrpc,Reason};
+	       []->
+		   {error,["No node available for app : ",App,?MODULE,?LINE]};
+	       [{Node,_}|_]->
+		   rpc:cast(Node,M,F,A)
+	   end,
+    Result.			   
+
+%% --------------------------------------------------------------------
+%% Function:start/0 
+%% Description: Initiate the eunit tests, set upp needed processes etc
+%% Returns: non
+%% --------------------------------------------------------------------
+all()->
+    Apps=[{Node,rpc:call(Node,net,gethostname,[],5*1000),rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[{Node,HostName,AppList}||{Node,{ok,HostName},AppList}<-Apps,
+				    AppList/={badrpc,nodedown}],
+    AvailableNodes.
+    
 
 
+get_node(WantedApp)->
+    Apps=[{Node,rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[Node||{Node,AppList}<-Apps,
+				     AppList/={badrpc,nodedown},
+				     AppList/={badrpc,timeout},
+				     true==lists:keymember(WantedApp,1,AppList)],
+    AvailableNodes.
+
+get_node_on_node(WantedApp,WantedNode)->
+
+    Apps=[{Node,rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[Node||{Node,AppList}<-Apps,
+			  AppList/={badrpc,nodedown},
+			  AppList/={badrpc,timeout},
+			  true==lists:keymember(WantedApp,1,AppList),
+			  Node==WantedNode],
+    AvailableNodes.
+
+get_node_on_host(WantedApp,WantedHost)->
+    Apps=[{Node,rpc:call(Node,net,gethostname,[],5*1000),
+	   rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[Node||{Node,{ok,HostName},AppList}<-Apps,
+				     AppList/={badrpc,nodedown},
+				     AppList/={badrpc,timeout},
+				     true=:=lists:keymember(WantedApp,1,AppList),
+				     HostName=:=WantedHost],
+    AvailableNodes.
+	  
+
+get_node_host(WantedApp)->
+    Apps=[{Node,rpc:call(Node,net,gethostname,[],5*1000),
+	   rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[{Node,HostName}||{Node,{ok,HostName},AppList}<-Apps,
+				     AppList/={badrpc,nodedown},
+				     AppList/={badrpc,timeout},
+				     true==lists:keymember(WantedApp,1,AppList)],
+    AvailableNodes.
+
+get_node_host_on_node(WantedApp,WantedNode)->
+
+    Apps=[{Node,rpc:call(Node,net,gethostname,[],5*1000),
+	   rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[{Node,HostName}||{Node,{ok,HostName},AppList}<-Apps,
+				     AppList/={badrpc,nodedown},
+				     AppList/={badrpc,timeout},
+				     true==lists:keymember(WantedApp,1,AppList),
+				     Node==WantedNode],
+    AvailableNodes.
+
+get_node_host_on_host(WantedApp,WantedHost)->
+    Apps=[{Node,rpc:call(Node,net,gethostname,[],5*1000),
+	   rpc:call(Node,application,which_applications,[],5*1000)}||Node<-[node()|nodes()]],
+    AvailableNodes=[{Node,HostName}||{Node,{ok,HostName},AppList}<-Apps,
+				     AppList/={badrpc,nodedown},
+				     AppList/={badrpc,timeout},
+				     true=:=lists:keymember(WantedApp,1,AppList),
+				     HostName=:=WantedHost],
+    AvailableNodes.
+	  
 
 %% 
 %% @doc:check if service is running
