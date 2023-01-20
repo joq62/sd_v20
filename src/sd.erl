@@ -57,7 +57,7 @@ call(App,M,F,A,T)->
 		   {error,[{badrpc,Reason}]};
 	       []->
 		   {error,["No node available for app : ",App,?MODULE,?LINE]};
-	       [{Node,_}|_]->
+	       [Node|_]->
 		   rpc:call(Node,M,F,A,T)
 	   end,
     Result.
@@ -73,7 +73,7 @@ cast(App,M,F,A)->
 		   {badrpc,Reason};
 	       []->
 		   {error,["No node available for app : ",App,?MODULE,?LINE]};
-	       [{Node,_}|_]->
+	       [Node|_]->
 		   rpc:cast(Node,M,F,A)
 	   end,
     Result.			   
